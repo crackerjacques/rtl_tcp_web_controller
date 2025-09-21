@@ -86,9 +86,7 @@ show_rtl_sdr_not_found() {
     echo
     print_warning "Please install RTL-SDR first before running this installer."
     echo
-    print_info "Installation options:"
-    print_info "1. Package manager: sudo apt-get install rtl-sdr"
-    print_info "2. From source: https://github.com/rtlsdrblog/rtl-sdr-blog"
+    print_info "https://github.com/rtlsdrblog/rtl-sdr-blog"
     echo
     print_info "After installing RTL-SDR, run this installer again."
     echo
@@ -138,8 +136,8 @@ check_library() {
 install_lgpio() {
     print_info "Installing lgpio library..."
     
-    sudo apt-get update
-    sudo apt-get install -y swig python3-dev python3-setuptools git build-essential
+    sudo apt update
+    sudo apt install -y swig python3-dev python3-setuptools git build-essential
     
     cd /tmp
     
@@ -165,8 +163,8 @@ install_lgpio() {
 install_wiringpi() {
     print_info "Installing WiringPi library..."
     
-    sudo apt-get update
-    sudo apt-get install -y python3-dev python3-setuptools swig git build-essential
+    sudo apt update
+    sudo apt install -y python3-dev python3-setuptools swig git build-essential
     
     cd /tmp
     
@@ -216,10 +214,10 @@ check_and_install_deps() {
 # install Python dependencies
 install_python_deps() {
     print_info "Installing Python dependencies..."
-    sudo apt-get update
+    sudo apt update
     
     print_info "Installing Python packages via apt..."
-    sudo apt-get install -y \
+    sudo apt install -y \
         python3 \
         python3-dev \
         python3-flask \
@@ -227,13 +225,13 @@ install_python_deps() {
     
     if ! python3 -c "import flask" 2>/dev/null; then
         print_warning "Flask not found via apt, installing via pip3..."
-        sudo apt-get install -y python3-pip
+        sudo apt install -y python3-pip
         sudo pip3 install flask
     fi
     
     if ! python3 -c "import psutil" 2>/dev/null; then
         print_warning "psutil not found via apt, installing via pip3..."
-        sudo apt-get install -y python3-pip
+        sudo apt install -y python3-pip
         sudo pip3 install psutil
     fi
     
