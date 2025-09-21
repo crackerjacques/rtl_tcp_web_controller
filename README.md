@@ -1,4 +1,7 @@
-# RTL-TCP Web Frontend
+# RTL_TCP Web Frontend
+
+Web controller for rtl_tcp.
+
 
 <img width="700" height="910" alt="2025-09-21_23-18-41" src="https://github.com/user-attachments/assets/72510499-03bd-4171-b22a-29c1c0040c57" />
 
@@ -36,6 +39,12 @@ chmod +x install.sh
 
 # Manual install
 
+__Install deps__
+```
+sudo apt install python3-flask python3-psutil
+```
+
+__Rename scrpit__
 ```
 # main script
 mv rtl_web_monitor_[your_gpio].py rtl_web_monitor.py
@@ -43,23 +52,35 @@ chmod +x rtl_web_monitor.py
 sudo cp rtl_web_monitor.py /usr/bin
 ```
 
-__edit service file__
+__Edit service file__
 
 ```
 nano rtl_web_monitor.service
-```
 
-```
 # Edit path to your install dir (e.g. /usr/bin/rtl_tcp  , /opt/bin/rtl_tcp  )
 
 [Service]
 ExecStart=/usr/local/bin/rtl_tcp -a 0.0.0.0 -s 2400000
+                ↑This
+
+```
+
+__Copy and Execute sevices__
 
 ```
 sudo cp rtl_tcp.service /etc/systemd/system/
 sudo cp rtl_web_monitor.service /etc/systemd/system/
 sudo systemctl daemon-reload
 sudo systemctl enable --now rtl_tcp.service
-sudo systemctl enable --now rtl_web_monitor.service \
+sudo systemctl enable --now rtl_web_monitor.service
 
 ```
+
+# With GPIO
+
+When implementing LEDs for indicators, connect them to pins 25 and 12 in the BCM pinout, or pins 6 and 26 in WiringPi.
+(This requires little further explanation.)
+
+<img width="450" height="498" alt="rpi5" src="https://github.com/user-attachments/assets/5768c7d4-212e-4648-8cf6-73946dfd83d1" />
+
+
