@@ -1,0 +1,15 @@
+[Unit]
+Description=RTL-SDR TCP Server
+After=network.target
+StartLimitIntervalSec=60
+StartLimitBurst=2
+
+[Service]
+ExecStart=/usr/local/bin/rtl_tcp -a 0.0.0.0 -s 2400000
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

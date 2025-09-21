@@ -1,0 +1,17 @@
+[Unit]
+Description=RTL-SDR Web Monitor
+After=network.target rtl_tcp.service
+
+[Service]
+ExecStart=/usr/bin/python3 /usr/bin/rtl_web_monitor.py
+WorkingDirectory=/usr/bin
+Restart=on-failure
+RestartSec=5
+StartLimitIntervalSec=60
+StartLimitBurst=2
+StandardOutput=inherit
+StandardError=inherit
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
