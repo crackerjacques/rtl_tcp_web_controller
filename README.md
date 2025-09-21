@@ -1,7 +1,10 @@
 # RTL_TCP Web Frontend
 
-Web controller for rtl_tcp.
+Web controller for rtl_tcp.  
+It works well on the Raspberry Pi Zero W / Nanopi Neo LTS.
 
+It will run on other SBCs and desktops,  
+but on boards where lgpio/WiringPi does not function, please select non-gpio.
 
 <img width="700" height="910" alt="2025-09-21_23-18-41" src="https://github.com/user-attachments/assets/72510499-03bd-4171-b22a-29c1c0040c57" />
 
@@ -86,7 +89,8 @@ sudo systemctl enable --now rtl_web_monitor.service
 
 # With GPIO
 
-When implementing LEDs for indicators, connect them to pins 25 and 12 in the BCM pinout, or pins 6 and 26 in WiringPi.
+When implementing LEDs for indicators,   
+connect them to pins 25 and 12 in the BCM pinout, or pins 6 and 26 in WiringPi.  
 (This requires little further explanation.)
 
 <img width="450" height="498" alt="rpi5" src="https://github.com/user-attachments/assets/5768c7d4-212e-4648-8cf6-73946dfd83d1" />
