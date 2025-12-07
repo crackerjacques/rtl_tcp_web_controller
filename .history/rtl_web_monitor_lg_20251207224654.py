@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, send_from_directory
+from flask import Flask, render_template, jsonify, request
 import time
 import subprocess
 import psutil
@@ -440,7 +440,6 @@ def create_static_files():
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>RTL-SDR Monitor (lgpio)</title>
-    <link rel="icon" href="{{ url_for('favicon') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
@@ -1273,10 +1272,6 @@ h2 {
 @app.route('/')
 def index():
     return render_template('index.html')
-
-@app.route('/favicon.ico')
-def favicon():
-    return send_from_directory('/etc/rtl_web_monitor', 'favicon.svg', mimetype='image/svg+xml')
 
 # API endpoint - Get current status
 @app.route('/api/status')

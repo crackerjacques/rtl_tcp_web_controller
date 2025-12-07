@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, send_from_directory
+from flask import Flask, render_template, jsonify, request
 import time
 import subprocess
 import psutil
@@ -9,102 +9,45 @@ import platform
 import re
 import shutil
 
-# lgpio library (for Raspberry Pi and other compatible SBCs)
+# WiringPi GPIO (for Raspberry Pi and other compatible SBCs)
 try:
-    import lgpio
+    import wiringpi
     GPIO_AVAILABLE = True
     
-    STANDBY_LED_PIN = 25
-    STREAMING_LED_PIN = 12
+    STANDBY_LED_PIN = 6   # GPIO 25 in BCM, WiringPi pin 6
+    STREAMING_LED_PIN = 1  # GPIO 12 in BCM, WiringPi pin 1
     
-    gpio_handle = None
+    wiringpi.wiringPiSetup()
+    wiringpi.pinMode(STANDBY_LED_PIN, wiringpi.OUTPUT)
+    wiringpi.pinMode(STREAMING_LED_PIN, wiringpi.OUTPUT)
     
-    def init_gpio():
-        global gpio_handle
-        try:
-            gpio_handle = lgpio.gpiochip_open(0)
-            
-            try:
-                lgpio.gpio_free(gpio_handle, STANDBY_LED_PIN)
-            except:
-                pass
-            try:
-                lgpio.gpio_free(gpio_handle, STREAMING_LED_PIN)
-            except:
-                pass
-            
-            lgpio.gpio_claim_output(gpio_handle, STANDBY_LED_PIN, lgpio.LOW)
-            lgpio.gpio_claim_output(gpio_handle, STREAMING_LED_PIN, lgpio.LOW)
-            return True
-        except Exception as e:
-            print(f"GPIO initialization failed: {e}")
-            return False
+    wiringpi.digitalWrite(STANDBY_LED_PIN, wiringpi.LOW)
+    wiringpi.digitalWrite(STREAMING_LED_PIN, wiringpi.LOW)
     
-    gpio_initialized = init_gpio()
-    
-    # Helper functions to match previous API
     def standby_led_on():
-        if gpio_handle is not None and gpio_initialized:
-            try:
-                lgpio.gpio_write(gpio_handle, STANDBY_LED_PIN, lgpio.HIGH)
-            except:
-                pass
+        wiringpi.digitalWrite(STANDBY_LED_PIN, wiringpi.HIGH)
     
     def standby_led_off():
-        if gpio_handle is not None and gpio_initialized:
-            try:
-                lgpio.gpio_write(gpio_handle, STANDBY_LED_PIN, lgpio.LOW)
-            except:
-                pass
+        wiringpi.digitalWrite(STANDBY_LED_PIN, wiringpi.LOW)
     
     def streaming_led_on():
-        if gpio_handle is not None and gpio_initialized:
-            try:
-                lgpio.gpio_write(gpio_handle, STREAMING_LED_PIN, lgpio.HIGH)
-            except:
-                pass
+        wiringpi.digitalWrite(STREAMING_LED_PIN, wiringpi.HIGH)
     
     def streaming_led_off():
-        if gpio_handle is not None and gpio_initialized:
-            try:
-                lgpio.gpio_write(gpio_handle, STREAMING_LED_PIN, lgpio.LOW)
-            except:
-                pass
-    
-    def cleanup_gpio():
-        global gpio_handle
-        if gpio_handle is not None:
-            try:
-                lgpio.gpio_free(gpio_handle, STANDBY_LED_PIN)
-            except:
-                pass
-            try:
-                lgpio.gpio_free(gpio_handle, STREAMING_LED_PIN)
-            except:
-                pass
-            try:
-                lgpio.gpiochip_close(gpio_handle)
-            except:
-                pass
-            gpio_handle = None
-    
-    GPIO_AVAILABLE = gpio_initialized
+        wiringpi.digitalWrite(STREAMING_LED_PIN, wiringpi.LOW)
         
 except ImportError:
     GPIO_AVAILABLE = False
     
-    # Dummy implementations when GPIO is not available
     def standby_led_on(): pass
     def standby_led_off(): pass
     def streaming_led_on(): pass
     def streaming_led_off(): pass
-    def cleanup_gpio(): pass
 
 app = Flask(__name__, 
     static_folder='/etc/rtl_web_monitor/static',
     template_folder='/etc/rtl_web_monitor/templates')
 
-# Global variables
 status = {
     "service_running": False,
     "streaming_active": False,
@@ -175,12 +118,10 @@ def check_streaming_connections():
 def get_cpu_temperature():
     if platform.system() == 'Linux':
         try:
-            # For Raspberry Pi
             if os.path.exists('/sys/class/thermal/thermal_zone0/temp'):
                 with open('/sys/class/thermal/thermal_zone0/temp', 'r') as f:
                     temp = float(f.read()) / 1000.0
                     return temp
-            # For general Linux
             if os.path.exists('/sys/class/hwmon'):
                 for hwmon in os.listdir('/sys/class/hwmon'):
                     hwmon_path = os.path.join('/sys/class/hwmon', hwmon)
@@ -189,7 +130,6 @@ def get_cpu_temperature():
                             with open(os.path.join(hwmon_path, subdir), 'r') as f:
                                 temp = float(f.read()) / 1000.0
                                 return temp
-            # Using sensors command
             try:
                 result = subprocess.run(
                     ["sensors"],
@@ -206,7 +146,7 @@ def get_cpu_temperature():
                 pass
         except:
             pass
-    return 0  # Return 0 if temperature cannot be retrieved
+    return 0
 
 # Get system statistics
 def get_system_stats():
@@ -232,7 +172,6 @@ def get_system_stats():
     status["network_sent"] = net_io.bytes_sent
     status["network_recv"] = net_io.bytes_recv
     
-    # Last update time
     status["update_time"] = time.time()
 
 # Update status in background
@@ -255,22 +194,18 @@ def update_status_loop():
         
         get_system_stats()
         
-        # Update LEDs (only if GPIO is available)
         if GPIO_AVAILABLE:
             if last_standby_state != (status["service_running"] and not status["streaming_active"]) or \
             last_streaming_state != status["streaming_active"]:
                 
                 if status["service_running"]:
                     if status["streaming_active"]:
-                        # Streaming
                         streaming_led_on()
                         standby_led_off()
                     else:
-                        # Standby
                         standby_led_on()
                         streaming_led_off()
                 else:
-                    # Dead state
                     standby_led_off()
                     streaming_led_off()
                     
@@ -350,7 +285,6 @@ def update_direct_command(command_line):
     except Exception as e:
         return False, f"Configuration update error: {str(e)}"
 
-# Get current RTL-TCP configuration
 def get_rtl_tcp_config():
     config = {
         "address": "0.0.0.0",
@@ -382,7 +316,6 @@ def get_rtl_tcp_config():
     
     return config
 
-# Update RTL-TCP configuration
 def update_rtl_tcp_config(address, port, sample_rate):
     try:
         service_file = '/etc/systemd/system/rtl_tcp.service'
@@ -433,19 +366,18 @@ def create_static_files():
     os.makedirs(f'{base_dir}/static/css', exist_ok=True)
     os.makedirs(f'{base_dir}/static/js', exist_ok=True)
 
-    with open(f'{base_dir}/templates/index.html', 'w') as f:
+    with open('templates/index.html', 'w') as f:
         f.write("""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RTL-SDR Monitor (lgpio)</title>
-    <link rel="icon" href="{{ url_for('favicon') }}">
+    <title>RTL-SDR Monitor</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <div class="container">
-        <h1>RTL-SDR Monitor (lgpio)</h1>
+        <h1>RTL-SDR Monitor</h1>
         
         <div class="status-panel">
             <div class="status-item">
@@ -470,11 +402,11 @@ def create_static_files():
                 <div id="gpio-status">
                     <div class="gpio-leds">
                         <div class="gpio-led">
-                            <div class="led-label">Standby LED (GPIO 25)</div>
+                            <div class="led-label">Standby LED (WiringPi 6)</div>
                             <div id="standby-led" class="led"></div>
                         </div>
                         <div class="gpio-led">
-                            <div class="led-label">Streaming LED (GPIO 12)</div>
+                            <div class="led-label">Streaming LED (WiringPi 1)</div>
                             <div id="streaming-led" class="led"></div>
                         </div>
                     </div>
@@ -611,7 +543,7 @@ def create_static_files():
 
     # Create CSS
     with open(f'{base_dir}/static/css/style.css', 'w') as f:
-        f.write("""* {
+            f.write("""* {
     margin: 0;
     padding: 0;
     box-sizing: border-box;
@@ -888,7 +820,7 @@ h2 {
 
     # Create JavaScript
     with open(f'{base_dir}/static/js/script.js', 'w') as f:
-        f.write("""document.addEventListener('DOMContentLoaded', function() {
+            f.write("""document.addEventListener('DOMContentLoaded', function() {
     // Get elements
     const serviceStatus = document.getElementById('service-status');
     const serviceText = document.getElementById('service-text');
@@ -1274,10 +1206,6 @@ h2 {
 def index():
     return render_template('index.html')
 
-@app.route('/favicon.ico')
-def favicon():
-    return send_from_directory('/etc/rtl_web_monitor', 'favicon.svg', mimetype='image/svg+xml')
-
 # API endpoint - Get current status
 @app.route('/api/status')
 def api_status():
@@ -1375,17 +1303,10 @@ def api_update_direct():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
-# Cleanup function for graceful shutdown
-import atexit
-atexit.register(cleanup_gpio)
-
 if __name__ == "__main__":
-    try:
-        create_static_files()
-        
-        status_thread = threading.Thread(target=update_status_loop, daemon=True)
-        status_thread.start()
-        
-        app.run(host='0.0.0.0', port=5678, debug=True)
-    finally:
-        cleanup_gpio()
+    create_static_files()
+    
+    status_thread = threading.Thread(target=update_status_loop, daemon=True)
+    status_thread.start()
+    
+    app.run(host='0.0.0.0', port=5678, debug=True)

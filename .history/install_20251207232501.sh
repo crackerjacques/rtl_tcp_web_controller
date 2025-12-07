@@ -295,18 +295,18 @@ install_services() {
         print_error "rtl_tcp.service not found!"
         return 1
     fi
-    
-    sudo mkdir -p "$CONFIG_DIR"
-    sudo mkdir -p "$CONFIG_DIR/static/css"
-    sudo mkdir -p "$CONFIG_DIR/static/js"
-    sudo mkdir -p "$CONFIG_DIR/templates"
-    
+
     if [[ -f "$SCRIPT_DIR/favicon.svg" ]]; then
         print_info "Installing favicon.svg..."
         sudo cp "$SCRIPT_DIR/favicon.svg" "$CONFIG_DIR/"
     else
         print_warning "favicon.svg not found in script directory, skipping."
     fi
+
+    sudo mkdir -p "$CONFIG_DIR"
+    sudo mkdir -p "$CONFIG_DIR/static/css"
+    sudo mkdir -p "$CONFIG_DIR/static/js"
+    sudo mkdir -p "$CONFIG_DIR/templates"
     
     print_info "Reloading systemd daemon..."
     sudo systemctl daemon-reload

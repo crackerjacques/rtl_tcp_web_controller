@@ -1,4 +1,4 @@
-from flask import Flask, render_template, jsonify, request, send_from_directory
+from flask import Flask, render_template, jsonify, request
 import time
 import subprocess
 import psutil
@@ -9,96 +9,7 @@ import platform
 import re
 import shutil
 
-# lgpio library (for Raspberry Pi and other compatible SBCs)
-try:
-    import lgpio
-    GPIO_AVAILABLE = True
-    
-    STANDBY_LED_PIN = 25
-    STREAMING_LED_PIN = 12
-    
-    gpio_handle = None
-    
-    def init_gpio():
-        global gpio_handle
-        try:
-            gpio_handle = lgpio.gpiochip_open(0)
-            
-            try:
-                lgpio.gpio_free(gpio_handle, STANDBY_LED_PIN)
-            except:
-                pass
-            try:
-                lgpio.gpio_free(gpio_handle, STREAMING_LED_PIN)
-            except:
-                pass
-            
-            lgpio.gpio_claim_output(gpio_handle, STANDBY_LED_PIN, lgpio.LOW)
-            lgpio.gpio_claim_output(gpio_handle, STREAMING_LED_PIN, lgpio.LOW)
-            return True
-        except Exception as e:
-            print(f"GPIO initialization failed: {e}")
-            return False
-    
-    gpio_initialized = init_gpio()
-    
-    # Helper functions to match previous API
-    def standby_led_on():
-        if gpio_handle is not None and gpio_initialized:
-            try:
-                lgpio.gpio_write(gpio_handle, STANDBY_LED_PIN, lgpio.HIGH)
-            except:
-                pass
-    
-    def standby_led_off():
-        if gpio_handle is not None and gpio_initialized:
-            try:
-                lgpio.gpio_write(gpio_handle, STANDBY_LED_PIN, lgpio.LOW)
-            except:
-                pass
-    
-    def streaming_led_on():
-        if gpio_handle is not None and gpio_initialized:
-            try:
-                lgpio.gpio_write(gpio_handle, STREAMING_LED_PIN, lgpio.HIGH)
-            except:
-                pass
-    
-    def streaming_led_off():
-        if gpio_handle is not None and gpio_initialized:
-            try:
-                lgpio.gpio_write(gpio_handle, STREAMING_LED_PIN, lgpio.LOW)
-            except:
-                pass
-    
-    def cleanup_gpio():
-        global gpio_handle
-        if gpio_handle is not None:
-            try:
-                lgpio.gpio_free(gpio_handle, STANDBY_LED_PIN)
-            except:
-                pass
-            try:
-                lgpio.gpio_free(gpio_handle, STREAMING_LED_PIN)
-            except:
-                pass
-            try:
-                lgpio.gpiochip_close(gpio_handle)
-            except:
-                pass
-            gpio_handle = None
-    
-    GPIO_AVAILABLE = gpio_initialized
-        
-except ImportError:
-    GPIO_AVAILABLE = False
-    
-    # Dummy implementations when GPIO is not available
-    def standby_led_on(): pass
-    def standby_led_off(): pass
-    def streaming_led_on(): pass
-    def streaming_led_off(): pass
-    def cleanup_gpio(): pass
+# No GPIO support in this version
 
 app = Flask(__name__, 
     static_folder='/etc/rtl_web_monitor/static',
@@ -120,7 +31,7 @@ status = {
     "network_recv": 0,
     "rtl_tcp_pid": None,
     "update_time": 0,
-    "gpio_available": GPIO_AVAILABLE
+    "gpio_available": False  # Always False in this version
 }
 
 # Check service status
@@ -206,7 +117,7 @@ def get_cpu_temperature():
                 pass
         except:
             pass
-    return 0  # Return 0 if temperature cannot be retrieved
+    return 0
 
 # Get system statistics
 def get_system_stats():
@@ -232,19 +143,14 @@ def get_system_stats():
     status["network_sent"] = net_io.bytes_sent
     status["network_recv"] = net_io.bytes_recv
     
-    # Last update time
     status["update_time"] = time.time()
 
-# Update status in background
 def update_status_loop():
     global status
     
     last_network_sent = 0
     last_network_recv = 0
     last_update_time = time.time()
-    
-    last_standby_state = None
-    last_streaming_state = None
     
     while True:
         status["service_running"] = is_service_running("rtl_tcp.service")
@@ -254,28 +160,6 @@ def update_status_loop():
             status["streaming_active"] = check_streaming_connections()
         
         get_system_stats()
-        
-        # Update LEDs (only if GPIO is available)
-        if GPIO_AVAILABLE:
-            if last_standby_state != (status["service_running"] and not status["streaming_active"]) or \
-            last_streaming_state != status["streaming_active"]:
-                
-                if status["service_running"]:
-                    if status["streaming_active"]:
-                        # Streaming
-                        streaming_led_on()
-                        standby_led_off()
-                    else:
-                        # Standby
-                        standby_led_on()
-                        streaming_led_off()
-                else:
-                    # Dead state
-                    standby_led_off()
-                    streaming_led_off()
-                    
-                last_standby_state = status["service_running"] and not status["streaming_active"]
-                last_streaming_state = status["streaming_active"]
         
         time.sleep(1)
 
@@ -297,7 +181,6 @@ def get_full_exec_command():
         with open(service_file, 'r') as f:
             content = f.read()
             
-        # Find ExecStart line
         exec_start_match = re.search(r'(ExecStart=.*)', content)
         if exec_start_match:
             return exec_start_match.group(1)
@@ -337,6 +220,7 @@ def update_direct_command(command_line):
         if reload_result.returncode != 0:
             return False, f"Error reloading systemd: {reload_result.stderr}"
         
+        # Restart service
         restart_result = subprocess.run(
             ["sudo", "systemctl", "restart", "rtl_tcp.service"],
             capture_output=True, text=True, check=False
@@ -382,7 +266,6 @@ def get_rtl_tcp_config():
     
     return config
 
-# Update RTL-TCP configuration
 def update_rtl_tcp_config(address, port, sample_rate):
     try:
         service_file = '/etc/systemd/system/rtl_tcp.service'
@@ -433,19 +316,19 @@ def create_static_files():
     os.makedirs(f'{base_dir}/static/css', exist_ok=True)
     os.makedirs(f'{base_dir}/static/js', exist_ok=True)
 
+    # Create HTML template
     with open(f'{base_dir}/templates/index.html', 'w') as f:
         f.write("""<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RTL-SDR Monitor (lgpio)</title>
-    <link rel="icon" href="{{ url_for('favicon') }}">
+    <title>RTL-SDR Monitor (No GPIO)</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
 </head>
 <body>
     <div class="container">
-        <h1>RTL-SDR Monitor (lgpio)</h1>
+        <h1>RTL-SDR Monitor (No GPIO)</h1>
         
         <div class="status-panel">
             <div class="status-item">
@@ -466,18 +349,6 @@ def create_static_files():
                 <div class="status-indicator">
                     <div id="streaming-status" class="status-light"></div>
                     <span id="streaming-text">Loading...</span>
-                </div>
-                <div id="gpio-status">
-                    <div class="gpio-leds">
-                        <div class="gpio-led">
-                            <div class="led-label">Standby LED (GPIO 25)</div>
-                            <div id="standby-led" class="led"></div>
-                        </div>
-                        <div class="gpio-led">
-                            <div class="led-label">Streaming LED (GPIO 12)</div>
-                            <div id="streaming-led" class="led"></div>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -686,41 +557,6 @@ h2 {
     box-shadow: 0 0 10px rgba(243, 156, 18, 0.5);
 }
 
-.gpio-leds {
-    display: flex;
-    justify-content: space-between;
-    margin-top: 15px;
-}
-
-.gpio-led {
-    text-align: center;
-    margin: 0 10px;
-}
-
-.led-label {
-    font-size: 0.8rem;
-    margin-bottom: 5px;
-}
-
-.led {
-    width: 30px;
-    height: 30px;
-    border-radius: 50%;
-    margin: 0 auto;
-    background-color: #95a5a6;
-    border: 2px solid #7f8c8d;
-}
-
-.led.on {
-    background-color: #2ecc71;
-    box-shadow: 0 0 15px rgba(46, 204, 113, 0.8);
-}
-
-.led.standby-on {
-    background-color: #f39c12;
-    box-shadow: 0 0 15px rgba(243, 156, 18, 0.8);
-}
-
 .button-group {
     display: flex;
     gap: 10px;
@@ -894,10 +730,6 @@ h2 {
     const serviceText = document.getElementById('service-text');
     const streamingStatus = document.getElementById('streaming-status');
     const streamingText = document.getElementById('streaming-text');
-    
-    // GPIO LED display
-    const standbyLed = document.getElementById('standby-led');
-    const streamingLed = document.getElementById('streaming-led');
     
     // CPU
     const cpuUsage = document.getElementById('cpu-usage');
@@ -1084,24 +916,12 @@ h2 {
                 if (data.streaming_active) {
                     streamingStatus.className = 'status-light active';
                     streamingText.textContent = 'On Air';
-                    
-                    // LED display
-                    streamingLed.className = 'led on';
-                    standbyLed.className = 'led';
                 } else if (data.service_running) {
                     streamingStatus.className = 'status-light standby';
                     streamingText.textContent = 'Stand By';
-                    
-                    // LED display
-                    streamingLed.className = 'led';
-                    standbyLed.className = 'led standby-on';
                 } else {
                     streamingStatus.className = 'status-light inactive';
                     streamingText.textContent = 'Stopped';
-                    
-                    // LED display
-                    streamingLed.className = 'led';
-                    standbyLed.className = 'led';
                 }
                 
                 // CPU usage
@@ -1138,14 +958,6 @@ h2 {
                     
                     networkSent.textContent = sentRate.toFixed(2);
                     networkRecv.textContent = recvRate.toFixed(2);
-                }
-                
-                // Hide GPIO status if not available
-                if (!data.gpio_available) {
-                    const gpioStatus = document.getElementById('gpio-status');
-                    if (gpioStatus) {
-                        gpioStatus.style.display = 'none';
-                    }
                 }
                 
                 // Update previous values
@@ -1274,10 +1086,6 @@ h2 {
 def index():
     return render_template('index.html')
 
-@app.route('/favicon.ico')
-def favicon():
-    return send_from_directory('/etc/rtl_web_monitor', 'favicon.svg', mimetype='image/svg+xml')
-
 # API endpoint - Get current status
 @app.route('/api/status')
 def api_status():
@@ -1375,17 +1183,10 @@ def api_update_direct():
     except Exception as e:
         return jsonify({"success": False, "message": str(e)})
 
-# Cleanup function for graceful shutdown
-import atexit
-atexit.register(cleanup_gpio)
-
 if __name__ == "__main__":
-    try:
-        create_static_files()
-        
-        status_thread = threading.Thread(target=update_status_loop, daemon=True)
-        status_thread.start()
-        
-        app.run(host='0.0.0.0', port=5678, debug=True)
-    finally:
-        cleanup_gpio()
+    create_static_files()
+    
+    status_thread = threading.Thread(target=update_status_loop, daemon=True)
+    status_thread.start()
+    
+    app.run(host='0.0.0.0', port=5678, debug=True)

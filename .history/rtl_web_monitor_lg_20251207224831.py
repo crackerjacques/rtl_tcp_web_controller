@@ -1274,10 +1274,6 @@ h2 {
 def index():
     return render_template('index.html')
 
-@app.route('/favicon.ico')
-def favicon():
-    return send_from_directory('/etc/rtl_web_monitor', 'favicon.svg', mimetype='image/svg+xml')
-
 # API endpoint - Get current status
 @app.route('/api/status')
 def api_status():
